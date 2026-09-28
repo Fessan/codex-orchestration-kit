@@ -10,7 +10,7 @@ cat > "$tmp/bin/orca-stub" <<'STUB'
 printf '%s\0' "$@" > "$WS_CAPTURE"
 STUB
 chmod +x "$tmp/bin/orca-stub"
-export WS_ORCA=$tmp/bin/orca-stub WS_CAPTURE=$tmp/capture PATH=$tmp/bin:/usr/bin:/bin
+export WS_ORCA=$tmp/bin/orca-stub WS_CAPTURE=$tmp/capture PATH=$tmp/bin:${PATH:-/usr/bin:/bin}:/usr/bin:/bin
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 expect_pass() {
@@ -64,11 +64,16 @@ mkdir "$tmp/spec-dir"
 expect_deny --model=gpt-6-sol --effort=high --spec "@$tmp/spec-dir"
 
 # Fall back to binaries in PATH when WS_ORCA is absent.
+mkdir -p "$tmp/tools"
+for utility in bash tr rm; do
+    utility_path=$(command -v "$utility") || fail "missing utility: $utility"
+    ln -s "$utility_path" "$tmp/tools/$utility"
+done
 cp "$tmp/bin/orca-stub" "$tmp/bin/orca-ide"
-(unset WS_ORCA; expect_pass --model gpt-6-luna --spec x)
+(unset WS_ORCA; PATH="$tmp/bin:$tmp/tools"; export PATH; expect_pass --model gpt-6-luna --spec x)
 rm "$tmp/bin/orca-ide"
 cp "$tmp/bin/orca-stub" "$tmp/bin/orca"
-(unset WS_ORCA; expect_pass --model gpt-6-luna --spec x)
+(unset WS_ORCA; PATH="$tmp/bin:$tmp/tools"; export PATH; expect_pass --model gpt-6-luna --spec x)
 
 # Avoid Bash 4-only case conversion and unsafe empty-array expansion.
 if grep -Eq '\$\{[^}]*,,\}' "$repo/bin/ws"; then fail 'Bash 4 case conversion'; fi
