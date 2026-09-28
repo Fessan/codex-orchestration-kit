@@ -2,7 +2,7 @@
 set -eu
 
 usage() {
-    printf 'usage: %s --user [--source DIR] [--project DIR] [--with-global-agents] [--dry-run] [--uninstall]\n' "$0" >&2
+    printf 'usage: %s (--user | --project DIR) [--source DIR] [--with-global-agents] [--dry-run] [--uninstall]\n' "$0" >&2
     exit 2
 }
 
@@ -34,13 +34,16 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
-[ "$user_mode" = true ] || usage
+[ "$user_mode" = true ] || [ -n "$project_dir" ] || usage
+[ "$global_agents" = false ] || [ "$user_mode" = true ] || usage
 source_dir=$(CDPATH= cd "$source_dir" && pwd -P) || exit 2
 codex_home=${CODEX_HOME:-"$HOME/.codex"}
-case $codex_home in
-    /*) ;;
-    *) printf 'CODEX_HOME must be absolute\n' >&2; exit 2 ;;
-esac
+if [ "$user_mode" = true ]; then
+    case $codex_home in
+        /*) ;;
+        *) printf 'CODEX_HOME must be absolute\n' >&2; exit 2 ;;
+    esac
+fi
 claude_home=$HOME/.claude
 if [ -n "$project_dir" ]; then
     project_dir=$(CDPATH= cd "$project_dir" && pwd -P) || exit 2
@@ -66,9 +69,11 @@ check_source() {
 }
 
 if [ "$uninstall" = false ]; then
-    check_source "$source_dispatch"
-    check_source "$source_kit"
-    check_source "$source_ws"
+    if [ "$user_mode" = true ]; then
+        check_source "$source_dispatch"
+        check_source "$source_kit"
+        check_source "$source_ws"
+    fi
     if [ "$global_agents" = true ] || [ -n "$project_dir" ]; then
         check_source "$source_agents"
     fi
@@ -114,11 +119,13 @@ preflight() {
 }
 
 if [ "$uninstall" = false ]; then
-    preflight "$target_claude_dispatch" "$source_dispatch"
-    preflight "$target_claude_kit" "$source_kit"
-    preflight "$target_codex_dispatch" "$source_dispatch"
-    preflight "$target_codex_kit" "$source_kit"
-    preflight "$target_ws" "$source_ws"
+    if [ "$user_mode" = true ]; then
+        preflight "$target_claude_dispatch" "$source_dispatch"
+        preflight "$target_claude_kit" "$source_kit"
+        preflight "$target_codex_dispatch" "$source_dispatch"
+        preflight "$target_codex_kit" "$source_kit"
+        preflight "$target_ws" "$source_ws"
+    fi
     if [ "$global_agents" = true ]; then
         preflight "$target_agents" "$source_agents"
     fi
@@ -162,13 +169,15 @@ else
     action=install_one
 fi
 
-"$action" "$target_claude_dispatch" "$source_dispatch"
-"$action" "$target_claude_kit" "$source_kit"
-"$action" "$target_codex_dispatch" "$source_dispatch"
-"$action" "$target_codex_kit" "$source_kit"
-"$action" "$target_ws" "$source_ws"
-if [ "$global_agents" = true ] || [ "$uninstall" = true ]; then
-    "$action" "$target_agents" "$source_agents"
+if [ "$user_mode" = true ]; then
+    "$action" "$target_claude_dispatch" "$source_dispatch"
+    "$action" "$target_claude_kit" "$source_kit"
+    "$action" "$target_codex_dispatch" "$source_dispatch"
+    "$action" "$target_codex_kit" "$source_kit"
+    "$action" "$target_ws" "$source_ws"
+    if [ "$global_agents" = true ] || [ "$uninstall" = true ]; then
+        "$action" "$target_agents" "$source_agents"
+    fi
 fi
 if [ -n "$project_dir" ]; then
     "$action" "$target_project_agents" "$source_agents"

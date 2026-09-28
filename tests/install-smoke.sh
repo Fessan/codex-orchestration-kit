@@ -31,6 +31,32 @@ assert_other_links() {
     assert_absent "$HOME/.claude/bin/ws"
 }
 
+# Project-only mode changes only the project policy.
+mkdir -p "$tmp/project-only"
+printf 'foreign policy\n' > "$tmp/project-only/AGENTS.md"
+cp "$tmp/project-only/AGENTS.md" "$tmp/project-only-before"
+if sh "$repo/install.sh" --project "$tmp/project-only" > "$tmp/output" 2>&1; then fail 'project-only conflict accepted'; fi
+cmp -s "$tmp/project-only/AGENTS.md" "$tmp/project-only-before" || fail 'project-only conflict changed'
+sh "$repo/install.sh" --uninstall --project "$tmp/project-only" > "$tmp/output" 2>&1
+cmp -s "$tmp/project-only/AGENTS.md" "$tmp/project-only-before" || fail 'project-only foreign policy removed'
+assert_no_links
+rm -- "$tmp/project-only/AGENTS.md"
+sh "$repo/install.sh" --project "$tmp/project-only" --dry-run > "$tmp/output" 2>&1
+assert_absent "$tmp/project-only/AGENTS.md"
+assert_no_links
+sh "$repo/install.sh" --project "$tmp/project-only" > "$tmp/output" 2>&1
+assert_link "$tmp/project-only/AGENTS.md" "$repo/AGENTS.md"
+assert_no_links
+sh "$repo/install.sh" --project "$tmp/project-only" > "$tmp/output" 2>&1
+grep -q '^already installed:' "$tmp/output" || fail 'project-only repeat not idempotent'
+sh "$repo/install.sh" --uninstall --project "$tmp/project-only" --dry-run > "$tmp/output" 2>&1
+assert_link "$tmp/project-only/AGENTS.md" "$repo/AGENTS.md"
+sh "$repo/install.sh" --uninstall --project "$tmp/project-only" > "$tmp/output" 2>&1
+assert_absent "$tmp/project-only/AGENTS.md"
+assert_no_links
+if sh "$repo/install.sh" > "$tmp/output" 2>&1; then fail 'missing install mode accepted'; fi
+if sh "$repo/install.sh" --uninstall > "$tmp/output" 2>&1; then fail 'missing uninstall mode accepted'; fi
+
 # Dry run must not create even parent directories.
 run_install --dry-run
 assert_absent "$HOME/.claude"
@@ -93,6 +119,13 @@ if run_install --with-global-agents; then fail 'global policy conflict accepted'
 cmp -s "$CODEX_HOME/AGENTS.md" "$tmp/before" || fail 'global policy changed'
 rm -- "$CODEX_HOME/AGENTS.md"
 run_install --with-global-agents
+assert_link "$CODEX_HOME/AGENTS.md" "$repo/AGENTS.md"
+
+# Project-only removal leaves previously installed user and global links intact.
+sh "$repo/install.sh" --project "$tmp/project-only" > "$tmp/output" 2>&1
+sh "$repo/install.sh" --uninstall --project "$tmp/project-only" > "$tmp/output" 2>&1
+assert_absent "$tmp/project-only/AGENTS.md"
+assert_link "$HOME/.claude/bin/ws" "$repo/bin/ws"
 assert_link "$CODEX_HOME/AGENTS.md" "$repo/AGENTS.md"
 
 # Dry uninstall preserves installed links, including the global policy.
