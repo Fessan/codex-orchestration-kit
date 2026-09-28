@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -u
+
+model= agent= spec= effort=
+argv=("$@")
+for ((index = 0; index < ${#argv[@]}; index++)); do
+    argument=${argv[index]}
+    case $argument in
+        --model|--agent|--spec|--effort)
+            if ((index + 1 < ${#argv[@]})); then
+                ((index++))
+                case $argument in
+                    --model) model=${argv[index]} ;;
+                    --agent) agent=${argv[index]} ;;
+                    --spec) spec=${argv[index]} ;;
+                    --effort) effort=${argv[index]} ;;
+                esac
+            fi
+            ;;
+        --model=*) model=${argument#--model=} ;;
+        --agent=*) agent=${argument#--agent=} ;;
+        --spec=*) spec=${argument#--spec=} ;;
+        --effort=*) effort=${argument#--effort=} ;;
+    esac
+done
+
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+model_lower=$(lower "$model")
+agent_lower=$(lower "$agent")
+effort_lower=$(lower "$effort")
+triggers=()
+[[ $model_lower == *astra* ]] && triggers+=(astra)
+[[ $agent_lower == claude && $model_lower == *opus* ]] && triggers+=(opus)
+[[ $model_lower == gpt-5.6-* ]] && triggers+=(legacy)
+if [[ $agent_lower != claude && -n $model_lower && $model_lower != *astra* && $model_lower != *luna* ]]; then
+    case $effort_lower in
+        high|xhigh|max|ultra) triggers+=(high) ;;
+    esac
+fi
+
+has_trigger() {
+    local name=$1 line=
+    if [[ $spec == @* ]]; then
+        local spec_file=${spec:1}
+        [[ -f $spec_file && -r $spec_file ]] || return 1
+        while IFS= read -r line || [[ -n $line ]]; do
+            [[ $(lower "$line") =~ ^[[:space:]-]*${name}: ]] && return 0
+        done < "$spec_file"
+    else
+        while IFS= read -r line || [[ -n $line ]]; do
+            [[ $(lower "$line") =~ ^[[:space:]-]*${name}: ]] && return 0
+        done <<< "$spec"
+    fi
+    return 1
+}
+
+for trigger in ${triggers[@]+"${triggers[@]}"}; do
+    if ! has_trigger "$trigger"; then
+        printf 'ws: model "%s" (agent "%s", effort "%s") needs a line "%s: reason" in --spec\n' \
+            "$model" "${agent:-codex}" "${effort:-medium}" "$trigger" >&2
+        exit 2
+    fi
+done
+
+if [[ -n ${WS_ORCA:-} ]]; then
+    orca_binary=$WS_ORCA
+elif command -v orca-ide >/dev/null 2>&1; then
+    orca_binary=orca-ide
+else
+    orca_binary=orca
+fi
+"$orca_binary" orchestration worker-start "$@"
