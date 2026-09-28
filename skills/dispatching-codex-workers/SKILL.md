@@ -91,7 +91,7 @@ SHA и SHA этого коммита, точный scope, строка `review-o
 
 Находки первого ревью — в [templates/remediation-brief.md](templates/remediation-brief.md), с
 точными ID и критерием закрытия для каждого. Отчёт о доработке — по каждому пункту отдельно.
-После доработки автор снова коммитит (без push) — этот коммит становится базой дельты.
+После доработки автор снова коммитит (без push) — этот коммит становится конечной точкой дельты (current_sha).
 
 Повторное ревью — по [templates/re-review-brief.md](templates/re-review-brief.md): конкретный
 список находок и diff строго `prev_review_sha..current_sha`, где `prev_review_sha` — коммит,
