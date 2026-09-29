@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 base_tmp=$(mktemp -d)
+base_tmp=$(cd -- "$base_tmp" && pwd -P)
 tmp=$base_tmp/'space in test'
 mkdir -p "$tmp"
 trap 'rm -rf -- "$base_tmp"' EXIT
