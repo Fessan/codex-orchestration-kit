@@ -42,7 +42,7 @@ git clone https://github.com/Fessan/codex-orchestration-kit.git "$HOME/codex-orc
 
 Одна команда ставит симлинки только на принадлежащие комплекту имена: скиллы
 `dispatching-codex-workers` и `codex-orchestration-kit` в `~/.claude/skills` и
-`$CODEX_HOME/skills` (обычно `~/.codex/skills`, см. ниже), `bin/ws` в `~/.claude/bin/ws`. Это всё,
+`$CODEX_HOME/skills` (обычно `~/.codex/skills`, см. ниже), `bin/ws` и `bin/session-usage` в `~/.claude/bin/` (для `session-usage` нужен Python 3). Это всё,
 что делает `--user` сам по себе: правила методики становятся доступны обоим рантаймам как скилл и
 гейт, но **не подключаются** ни к одному конкретному проекту и не становятся глобальной политикой
 Codex — эти два шага отдельные и ниже.
@@ -72,7 +72,7 @@ claude --model <model> -p "ok"
 ### Подключить `AGENTS.md` к проекту
 
 `--project` можно давать и отдельно, без `--user` — тогда ставится только симлинк
-`/path/to/project/AGENTS.md -> .../codex-orchestration-kit/AGENTS.md`, без скиллов и `bin/ws`:
+`/path/to/project/AGENTS.md -> .../codex-orchestration-kit/AGENTS.md`, без скиллов, `bin/ws` и `bin/session-usage`:
 
 ```sh
 sh "$HOME/codex-orchestration-kit/install.sh" --project /path/to/project
@@ -107,12 +107,12 @@ codex-orchestration-kit/AGENTS.md`).
 
 | Флаг | Действие |
 | --- | --- |
-| `--user` | Основная установка: симлинки скиллов и `bin/ws` в `~/.claude` и `$CODEX_HOME`. |
+| `--user` | Основная установка: симлинки скиллов, `bin/ws` и `bin/session-usage` в `~/.claude` и `$CODEX_HOME`. |
 | `--source DIR` | Взять комплект не из каталога, где лежит `install.sh` (умолчание), а из указанного. |
 | `--project DIR` | Симлинк `DIR/AGENTS.md` на `AGENTS.md` комплекта — только если в `DIR` своего `AGENTS.md` нет. Можно отдельно от `--user` (тогда без скиллов и гейта) или вместе с ним. |
 | `--with-global-agents` | Дополнительно: симлинк `$CODEX_HOME/AGENTS.md -> AGENTS.md` репозитория — только если путь свободен. Не входит в `--user` по умолчанию, потому что затрагивает глобальную политику Codex, а не только эти скиллы. Для Claude Code этот флаг ничего не делает — глобальное подключение там ручное, см. «Чтобы методика работала во всех проектах». |
 | `--dry-run` | Показать, что будет сделано, без записи на диск. |
-| `--uninstall` | Снять только свои ссылки: скиллы, `bin/ws`, глобальную ссылку `AGENTS.md` (если она наша) и, при повторном указании `--project DIR`, ссылку в этом проекте. Чужие файлы и симлинки на другие источники не трогает. |
+| `--uninstall` | Снять только свои ссылки: скиллы, `bin/ws`, `bin/session-usage`, глобальную ссылку `AGENTS.md` (если она наша) и, при повторном указании `--project DIR`, ссылку в этом проекте. Чужие файлы и симлинки на другие источники не трогает. |
 
 `$CODEX_HOME` — переменная окружения Codex; если не задана, используется `~/.codex`. Все пути
 Codex в этом README (`skills`, `AGENTS.md`) — относительно неё, а не жёстко `~/.codex`. Проверить

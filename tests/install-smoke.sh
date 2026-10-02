@@ -19,6 +19,7 @@ assert_absent() { [[ ! -e $1 && ! -L $1 ]] || fail "unexpected path: $1"; }
 run_install() { sh "$repo/install.sh" --user --source "$repo" "$@" > "$tmp/output" 2>&1; }
 run_default() { sh "$repo/install.sh" --user "$@" > "$tmp/output" 2>&1; }
 assert_no_links() {
+    assert_absent "$HOME/.claude/bin/session-usage"
     for owner in "$HOME/.claude" "$CODEX_HOME"; do
         assert_absent "$owner/skills/dispatching-codex-workers"
         assert_absent "$owner/skills/codex-orchestration-kit"
@@ -26,6 +27,7 @@ assert_no_links() {
     assert_absent "$HOME/.claude/bin/ws"
 }
 assert_other_links() {
+    assert_absent "$HOME/.claude/bin/session-usage"
     assert_absent "$HOME/.claude/skills/dispatching-codex-workers"
     assert_absent "$HOME/.claude/skills/codex-orchestration-kit"
     assert_absent "$CODEX_HOME/skills/dispatching-codex-workers"
@@ -75,6 +77,14 @@ grep -Eq 'conflict:|Resolve conflicts manually' "$tmp/output" || fail 'conflict 
 rm -- "$HOME/.claude/bin/ws"
 
 # An occupied parent must fail before any other target is written.
+printf 'foreign command\n' > "$HOME/.claude/bin/session-usage"
+if run_install; then fail 'session-usage conflict accepted'; fi
+assert_absent "$HOME/.claude/bin/ws"
+assert_absent "$HOME/.claude/skills"
+assert_absent "$CODEX_HOME/skills"
+[[ $(< "$HOME/.claude/bin/session-usage") == 'foreign command' ]] || fail 'foreign command changed'
+rm -- "$HOME/.claude/bin/session-usage"
+
 printf 'blocked directory\n' > "$CODEX_HOME/skills"
 if run_install; then fail 'occupied parent accepted'; fi
 assert_absent "$HOME/.claude/skills"
@@ -109,8 +119,9 @@ for owner in "$HOME/.claude" "$CODEX_HOME"; do
     assert_link "$owner/skills/codex-orchestration-kit" "$repo/skills/codex-orchestration-kit"
 done
 assert_link "$HOME/.claude/bin/ws" "$repo/bin/ws"
+assert_link "$HOME/.claude/bin/session-usage" "$repo/bin/session-usage"
 run_install
-[[ $(grep -c '^already installed:' "$tmp/output") == 5 ]] || fail 'repeat not idempotent'
+[[ $(grep -c '^already installed:' "$tmp/output") == 6 ]] || fail 'repeat not idempotent'
 
 # The optional global policy is opt-in and uses CODEX_HOME.
 assert_absent "$CODEX_HOME/AGENTS.md"
@@ -131,6 +142,7 @@ assert_link "$CODEX_HOME/AGENTS.md" "$repo/AGENTS.md"
 
 # Dry uninstall preserves installed links, including the global policy.
 run_install --uninstall --dry-run
+assert_link "$HOME/.claude/bin/session-usage" "$repo/bin/session-usage"
 assert_link "$HOME/.claude/bin/ws" "$repo/bin/ws"
 assert_link "$CODEX_HOME/AGENTS.md" "$repo/AGENTS.md"
 
@@ -162,6 +174,7 @@ for path in \
     "$HOME/.claude/skills/codex-orchestration-kit" \
     "$CODEX_HOME/skills/dispatching-codex-workers" \
     "$HOME/.claude/bin/ws" \
+    "$HOME/.claude/bin/session-usage" \
     "$CODEX_HOME/AGENTS.md"; do
     assert_absent "$path"
 done
@@ -173,6 +186,7 @@ copy=$tmp/'repo source'
 mkdir -p "$copy/skills/dispatching-codex-workers" "$copy/skills/codex-orchestration-kit" "$copy/bin"
 cp "$repo/install.sh" "$copy/install.sh"
 cp "$repo/bin/ws" "$copy/bin/ws"
+cp "$repo/bin/session-usage" "$copy/bin/session-usage"
 printf 'agents\n' > "$copy/AGENTS.md"
 (export HOME=$tmp/'copy home' CODEX_HOME=$tmp/'copy codex'; mkdir -p "$HOME"; cd "$tmp"; sh "$copy/install.sh" --user > "$tmp/copy-output"; assert_link "$HOME/.claude/bin/ws" "$copy/bin/ws")
 printf 'install smoke: ok\n'

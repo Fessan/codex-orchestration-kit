@@ -54,9 +54,11 @@ target_claude_kit=$claude_home/skills/codex-orchestration-kit
 target_codex_dispatch=$codex_home/skills/dispatching-codex-workers
 target_codex_kit=$codex_home/skills/codex-orchestration-kit
 target_ws=$claude_home/bin/ws
+target_usage=$claude_home/bin/session-usage
 source_dispatch=$source_dir/skills/dispatching-codex-workers
 source_kit=$source_dir/skills/codex-orchestration-kit
 source_ws=$source_dir/bin/ws
+source_usage=$source_dir/bin/session-usage
 source_agents=$source_dir/AGENTS.md
 target_agents=$codex_home/AGENTS.md
 target_project_agents=${project_dir:+$project_dir/AGENTS.md}
@@ -73,6 +75,7 @@ if [ "$uninstall" = false ]; then
         check_source "$source_dispatch"
         check_source "$source_kit"
         check_source "$source_ws"
+        check_source "$source_usage"
     fi
     if [ "$global_agents" = true ] || [ -n "$project_dir" ]; then
         check_source "$source_agents"
@@ -125,6 +128,7 @@ if [ "$uninstall" = false ]; then
         preflight "$target_codex_dispatch" "$source_dispatch"
         preflight "$target_codex_kit" "$source_kit"
         preflight "$target_ws" "$source_ws"
+        preflight "$target_usage" "$source_usage"
     fi
     if [ "$global_agents" = true ]; then
         preflight "$target_agents" "$source_agents"
@@ -175,6 +179,7 @@ if [ "$user_mode" = true ]; then
     "$action" "$target_codex_dispatch" "$source_dispatch"
     "$action" "$target_codex_kit" "$source_kit"
     "$action" "$target_ws" "$source_ws"
+    "$action" "$target_usage" "$source_usage"
     if [ "$global_agents" = true ] || [ "$uninstall" = true ]; then
         "$action" "$target_agents" "$source_agents"
     fi
