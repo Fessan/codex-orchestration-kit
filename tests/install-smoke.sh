@@ -76,7 +76,7 @@ assert_absent "$CODEX_HOME/skills"
 grep -Eq 'conflict:|Resolve conflicts manually' "$tmp/output" || fail 'conflict details missing'
 rm -- "$HOME/.claude/bin/ws"
 
-# An occupied parent must fail before any other target is written.
+# A foreign session-usage command must be preserved.
 printf 'foreign command\n' > "$HOME/.claude/bin/session-usage"
 if run_install; then fail 'session-usage conflict accepted'; fi
 assert_absent "$HOME/.claude/bin/ws"
@@ -85,6 +85,7 @@ assert_absent "$CODEX_HOME/skills"
 [[ $(< "$HOME/.claude/bin/session-usage") == 'foreign command' ]] || fail 'foreign command changed'
 rm -- "$HOME/.claude/bin/session-usage"
 
+# An occupied parent must fail before any other target is written.
 printf 'blocked directory\n' > "$CODEX_HOME/skills"
 if run_install; then fail 'occupied parent accepted'; fi
 assert_absent "$HOME/.claude/skills"

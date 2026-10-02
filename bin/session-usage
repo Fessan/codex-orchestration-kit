@@ -19,34 +19,52 @@ parser = argparse.ArgumentParser(description="Расход токенов одн
 parser.add_argument("--agent", choices=("codex", "claude"))
 parser.add_argument("--session")
 args = parser.parse_args()
+def session_path(agent, session):
+    if not session:
+        variable = "CODEX_SESSION_ID" if agent == "codex" else "CLAUDE_CODE_SESSION_ID"
+        fail(f"не найдена переменная {variable}; укажите --session")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", session):
+        fail("недопустимый id сессии")
+    if agent == "codex":
+        root = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+        pattern = f"sessions/*/*/*/rollout-*-{session}.jsonl"
+    else:
+        root = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+        pattern = f"projects/*/{session}.jsonl"
+    paths = list(root.glob(pattern))
+    if len(paths) != 1:
+        fail(f"файл сессии {session}: найдено {len(paths)}, ожидался один")
+    return paths[0]
+
+
 agent = args.agent
-if not agent:
-    present = [a for a, var in (("codex", "CODEX_SESSION_ID"),
-                               ("claude", "CLAUDE_CODE_SESSION_ID")) if os.environ.get(var)]
-    if len(present) != 1:
-        fail("не найдена единственная переменная сессии; укажите --agent и --session")
-    agent = present[0]
-variable = "CODEX_SESSION_ID" if agent == "codex" else "CLAUDE_CODE_SESSION_ID"
-session = args.session or os.environ.get(variable)
-if not session:
-    fail(f"не найдена переменная {variable}; укажите --session")
-if not re.fullmatch(r"[A-Za-z0-9_-]+", session):
-    fail("недопустимый id сессии")
-if agent == "codex":
-    root = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    pattern = f"sessions/*/*/*/rollout-*-{session}.jsonl"
-else:
-    root = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
-    pattern = f"projects/*/{session}.jsonl"
-paths = list(root.glob(pattern))
-if len(paths) != 1:
-    fail(f"файл сессии {session}: найдено {len(paths)}, ожидался один")
+sessions = {a: os.environ.get(var) for a, var in
+            (("codex", "CODEX_SESSION_ID"), ("claude", "CLAUDE_CODE_SESSION_ID"))}
+try:
+    if not agent:
+        present = [a for a in sessions if sessions[a]]
+        if len(present) == 2:
+            modified = {a: session_path(a, args.session or sessions[a]).stat().st_mtime_ns
+                        for a in present}
+            if modified["codex"] == modified["claude"]:
+                fail("журналы изменены одновременно; укажите --agent")
+            agent = max(modified, key=modified.get)
+            print(f"session-usage: выбрана {agent} сессия {args.session or sessions[agent]}: "
+                  "её журнал изменён позже", file=sys.stderr)
+        elif len(present) == 1:
+            agent = present[0]
+        else:
+            fail("не найдена единственная переменная сессии; укажите --agent и --session")
+    session = args.session or sessions[agent]
+    path = session_path(agent, session)
+except OSError as error:
+    fail(f"не удалось найти журнал сессии ({type(error).__name__})")
 
 
 def counts(usage, fields):
     if not isinstance(usage, dict) or not all(k in usage for k in ("input_tokens", "output_tokens")):
         fail("не найдены обязательные поля расхода")
-    values = [usage.get(k, 0) for k in fields]
+    values = [0 if usage.get(k) is None else usage[k] for k in fields]
     if any(type(v) is not int or v < 0 for v in values):
         fail("некорректные значения расхода")
     return values
@@ -55,11 +73,17 @@ def counts(usage, fields):
 last = None
 messages = {}
 try:
-    with paths[0].open(encoding="utf-8") as stream:
+    with path.open(encoding="utf-8") as stream:
         for line in stream:
             if not line.strip():
                 continue
-            record = json.loads(line)
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                # A writer may not yet have finished the last physical line.
+                if not line.endswith("\n"):
+                    break
+                raise
             payload = record.get("payload") or {}
             if agent == "codex":
                 usage = None
